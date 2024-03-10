@@ -1,48 +1,45 @@
 # ml.py
-
-from PIL import Image
 import numpy as np
+import librosa
 import io
 import tensorflow as tf
 from fastapi import HTTPException
 
-model = tf.keras.models.load_model('./model/fer.h5')
+model = tf.keras.models.load_model('./model/female_model.h5')
 
 
-async def preprocess_image(image_path):
-    img = Image.open(image_path)
-    img = img.convert('L')
-    img = img.resize((48, 48))
-    img_array = np.asarray(img) / 255.0
-    img_array = img_array.flatten()
-    return img_array
+async def extract_features(data):
+
+    result = np.array([])
+
+    # mfccs = librosa.feature.mfcc(y=data, sr=22050, n_mfcc=42) #42 mfcc so we get frames of ~60 ms
+    mfccs = librosa.feature.mfcc(y=data, sr=22050, n_mfcc=58)
+    mfccs_processed = np.mean(mfccs.T, axis=0)
+    result = np.array(mfccs_processed)
+
+    return result
 
 
-async def predict_image(file):
-    img_bytes = await file.read()
-    img_path = io.BytesIO(img_bytes)
-    processed_image = await preprocess_image(img_path)
-    processed_image = np.reshape(processed_image, (1, 48, 48, 1))
-    predictions = model.predict(processed_image)
-    return predictions.tolist()
+async def process_audio_file(file_path):
+    data, sample_rate = librosa.load(
+        file_path, duration=3, offset=0.5, res_type='kaiser_fast')
+    res1 = await extract_features(data)
+    result = np.array(res1).reshape(1, -1, 1)
+    print("result: ", result)
+    return result
 
 
-async def predict_images(files):
-    predictions_list = []
-
-    for file in files:
-        if not file.content_type.startswith('image'):
-            raise HTTPException(
-                status_code=400, detail="All files must be images")
-
-        predictions = await predict_image(file)
-        ind = np.argmax(predictions[0])
-        predictions_list.append(mapper[ind])
-
+async def predict_audio_file(file):
+    audio_bytes = await file.read()
+    audio_path = io.BytesIO(audio_bytes)
+    predictions_data = await process_audio_file(audio_path)
+    predictions_data = predictions_data.reshape(1, -1, 1)
+    print("predictions_data : ", len(predictions_data))
+    predictions_list = await model.predict(predictions_data)
+    print("predictions_list : ", len(predictions_list))
     return predictions_list
 
-mapper = {
-    0: "happy",
-    1: "sad",
-    2: "neutral",
-}
+
+async def predict(data):
+    p = await model.predict(data)
+    return p

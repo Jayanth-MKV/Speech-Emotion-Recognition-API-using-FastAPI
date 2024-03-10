@@ -1,44 +1,28 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-import numpy as np
-import librosa
-from ml import extract_features
+import io
+from ml import process_audio_file, predict
 
 app = FastAPI()
 
 
-class AudioEmotionRequest(BaseModel):
-    file: UploadFile
-
-
-@app.post("/process_audio")
-async def process_audio_emotion(request: AudioEmotionRequest):
-    content_type = request.file.content_type
+@app.post("/predict_audio")
+async def process_audio_emotion(file: UploadFile,):
+    content_type = file.content_type
 
     # Check if the uploaded file is an audio file
     if "audio" not in str(content_type):
         raise HTTPException(
             status_code=415, detail="Unsupported Media Type. Please upload an audio file.")
 
-    # Save the uploaded file to a temporary location
-    with open("temp_audio.wav", "wb") as audio_file:
-        audio_file.write(request.file.file.read())
+    audio_bytes = await file.read()
+    audio_path = io.BytesIO(audio_bytes)
+    predictions_data = await process_audio_file(audio_path)
+    # predictions_data = predictions_data.reshape(1, -1, 1)
+    print("predictions_data : ", predictions_data)
+    print("predictions_data : ", predictions_data[0].shape)
+    predictions_list = await predict(predictions_data[0])
+    print("predictions_list : ", predictions_list.shape)
+    # ind = np.argmax(predictions_list[0])
 
-    # Extract features from the audio file
-    try:
-        data, sample_rate = librosa.load(
-            "temp_audio.wav", duration=3, offset=0.5, res_type='kaiser_fast')
-        features = extract_features(data)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error processing audio: {str(e)}")
-
-    # You can now use the 'features' array to make predictions using your model
-    # For example, if using a pre-trained model:
-    # model = load_model("model.h5")
-    # predictions = model.predict(features)
-
-    # Replace the next line with your actual emotion prediction logic
-    # For now, returning the extracted features as JSON response
-    return JSONResponse(content={"features": features.tolist()}, status_code=200)
+    return {"emotion": predictions_list.tolist()}
