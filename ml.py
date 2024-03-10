@@ -3,10 +3,10 @@ import numpy as np
 import librosa
 import io
 import tensorflow as tf
-from fastapi import HTTPException
 
-model = tf.keras.models.load_model('./model/female_model.h5')
-
+model = tf.keras.models.load_model('./model/total_model.h5')
+m = np.load('./model/mean.npy')
+s = np.load('./model/std.npy')
 
 async def extract_features(data):
 
@@ -19,27 +19,47 @@ async def extract_features(data):
 
     return result
 
+async def Standardize(x):
+     return (x - m) / (s)
 
 async def process_audio_file(file_path):
     data, sample_rate = librosa.load(
         file_path, duration=3, offset=0.5, res_type='kaiser_fast')
     res1 = await extract_features(data)
-    result = np.array(res1).reshape(1, -1, 1)
-    print("result: ", result)
-    return result
+    
+    # Min-Max Scaling
+    # min_value = np.min(res1)
+    # max_value = np.max(res1)
+    # scaled_res1 = (res1 - min_value) / (max_value - min_value)
 
+    scaled_res1 = await Standardize(res1)
+
+    print("sr - ",scaled_res1)
+    result = scaled_res1.reshape(1, 58, 1)
+    print("result - ",result)
+    return result
 
 async def predict_audio_file(file):
     audio_bytes = await file.read()
     audio_path = io.BytesIO(audio_bytes)
     predictions_data = await process_audio_file(audio_path)
     predictions_data = predictions_data.reshape(1, -1, 1)
-    print("predictions_data : ", len(predictions_data))
     predictions_list = await model.predict(predictions_data)
-    print("predictions_list : ", len(predictions_list))
     return predictions_list
 
 
 async def predict(data):
-    p = await model.predict(data)
-    return p
+    p = model.predict(data)
+    print("p - ",p)
+    ind = np.argmax(p[0])
+    print("Ind - ",ind)
+    return mapper[ind]
+
+mapper = ['angry',
+ 'calm',
+ 'disgust',
+ 'fear',
+ 'happy',
+ 'neutral',
+ 'sad',
+ 'surprise']

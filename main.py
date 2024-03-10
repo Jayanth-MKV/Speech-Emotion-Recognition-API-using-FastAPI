@@ -18,11 +18,16 @@ async def process_audio_emotion(file: UploadFile,):
     audio_bytes = await file.read()
     audio_path = io.BytesIO(audio_bytes)
     predictions_data = await process_audio_file(audio_path)
-    # predictions_data = predictions_data.reshape(1, -1, 1)
-    print("predictions_data : ", predictions_data)
-    print("predictions_data : ", predictions_data[0].shape)
-    predictions_list = await predict(predictions_data[0])
-    print("predictions_list : ", predictions_list.shape)
+
+    # print("predictions_data : ", predictions_data.shape)
+
+    # Ensure that predictions_data has the correct shape (1, 58, 1)
+    if predictions_data.shape != (1,58, 1):
+        raise HTTPException(status_code=500, detail=f"Invalid shape of processed audio data: {predictions_data.shape}")
+
+
+    predictions_list = await predict(predictions_data)
+    print("predictions_list : ", predictions_list)
     # ind = np.argmax(predictions_list[0])
 
-    return {"emotion": predictions_list.tolist()}
+    return {"emotion": predictions_list}
