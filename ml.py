@@ -5,7 +5,8 @@ import io
 import tensorflow as tf
 
 
-model = tf.keras.models.load_model('./model/total_model.h5')
+model = tf.keras.models.load_model('./model/female_model.h5')
+
 m = np.load('./model/mean.npy')
 s = np.load('./model/std.npy')
 
