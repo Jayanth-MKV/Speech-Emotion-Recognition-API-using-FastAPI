@@ -4,6 +4,7 @@ import librosa
 import io
 import tensorflow as tf
 
+
 model = tf.keras.models.load_model('./model/total_model.h5')
 m = np.load('./model/mean.npy')
 s = np.load('./model/std.npy')
@@ -34,9 +35,9 @@ async def process_audio_file(file_path):
 
     scaled_res1 = await Standardize(res1)
 
-    print("sr - ",scaled_res1)
+    # print("sr - ",scaled_res1)
     result = scaled_res1.reshape(1, 58, 1)
-    print("result - ",result)
+    # print("result - ",result)
     return result
 
 async def predict_audio_file(file):
@@ -55,11 +56,4 @@ async def predict(data):
     print("Ind - ",ind)
     return mapper[ind]
 
-mapper = ['angry',
- 'calm',
- 'disgust',
- 'fear',
- 'happy',
- 'neutral',
- 'sad',
- 'surprise']
+mapper = ['fear', 'happy', 'neutral', 'sad']
