@@ -6,6 +6,8 @@ import tensorflow as tf
 
 
 model = tf.keras.models.load_model('./model/new/total_model.h5')
+malemodel = tf.keras.models.load_model('./model/new/male_model.h5')
+femalemodel = tf.keras.models.load_model('./model/new/female_model.h5')
 
 m = np.load('./model/new/mean.npy')
 s = np.load('./model/new/std.npy')
@@ -25,21 +27,27 @@ async def Standardize(x):
      return (x - m) / (s)
 
 async def process_audio_file(file_path):
-    data, sample_rate = librosa.load(
-        file_path, duration=3, offset=0.5, res_type='kaiser_fast')
-    res1 = await extract_features(data)
-    
-    # Min-Max Scaling
-    # min_value = np.min(res1)
-    # max_value = np.max(res1)
-    # scaled_res1 = (res1 - min_value) / (max_value - min_value)
+    try:
+        data, sample_rate = librosa.load(
+            file_path, duration=3, offset=0.5, res_type='kaiser_fast')
+        print("sr: ",sample_rate)
+        res1 = await extract_features(data)
+        
+        # Min-Max Scaling
+        # min_value = np.min(res1)
+        # max_value = np.max(res1)
+        # scaled_res1 = (res1 - min_value) / (max_value - min_value)
 
-    scaled_res1 = await Standardize(res1)
+        scaled_res1 = await Standardize(res1)
 
-    # print("sr - ",scaled_res1)
-    result = scaled_res1.reshape(1, 58, 1)
-    # print("result - ",result)
-    return result
+        # print("sr - ",scaled_res1)
+        result = scaled_res1.reshape(1, 58, 1)
+        # print("result - ",result)
+        return result
+    except Exception as e:
+        # Handle any exceptions that occur during audio loading
+        print(f"Error loading audio data: {e}")
+        raise
 
 async def predict_audio_file(file):
     audio_bytes = await file.read()
@@ -52,6 +60,22 @@ async def predict_audio_file(file):
 
 async def predict(data):
     p = model.predict(data)
+    print("p - ",p)
+    ind = np.argmax(p[0])
+    print("Ind - ",ind)
+    return mapper[ind]
+
+async def malepredict(data):
+    print("MALE")
+    p = malemodel.predict(data)
+    print("p - ",p)
+    ind = np.argmax(p[0])
+    print("Ind - ",ind)
+    return mapper[ind]
+
+async def femalepredict(data):
+    print("FEMALE")
+    p = femalemodel.predict(data)
     print("p - ",p)
     ind = np.argmax(p[0])
     print("Ind - ",ind)

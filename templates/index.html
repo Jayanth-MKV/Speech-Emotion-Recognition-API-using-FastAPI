@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio Recording</title>
+  </head>
+  <body>
+    <h1>Audio Recording</h1>
+    <button id="start-button">Start Recording</button>
+    <button id="stop-button" style="display: none">Stop Recording</button>
+    <audio id="audio-element" controls style="display: none"></audio>
+    <canvas id="canvas" width="500" height="100"></canvas>
+    <div id="emotion-container"></div>
+
+    <script>
+      document
+        .getElementById("start-button")
+        .addEventListener("click", startRecording);
+
+      let recorder;
+      let audioChunks = [];
+      let audioContext;
+      let canvasContext;
+
+      async function startRecording() {
+        document.getElementById("start-button").style.display = "none";
+        document.getElementById("stop-button").style.display = "inline-block";
+        document.getElementById("audio-element").style.display = "none";
+        document.getElementById("emotion-container").innerHTML = "";
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        audioContext = new AudioContext();
+        recorder = new MediaRecorder(stream);
+
+        canvasContext = document.getElementById("canvas").getContext("2d");
+        canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+        canvasContext.fillStyle = "black";
+
+        recorder.ondataavailable = (e) => {
+          audioChunks.push(e.data);
+          visualizeAudio(e.data);
+        };
+
+        recorder.onstop = async () => {
+          const blob = new Blob(audioChunks, { type: "audio/wav" });
+          const audioUrl = URL.createObjectURL(blob);
+          document.getElementById("audio-element").src = audioUrl;
+          document.getElementById("audio-element").style.display = "block";
+
+          try {
+            const formData = new FormData();
+            formData.append("file", blob, "audio.wav");
+            console.log(formData.get("file"));
+            const response = await fetch("/predict_audio", {
+              method: "POST",
+              body: formData,
+            });
+            const data = await response.json();
+            document.getElementById(
+              "emotion-container"
+            ).innerText = `Predicted Emotion: ${data.emotion}`;
+          } catch (error) {
+            console.error("Error sending audio data to backend:", error);
+          }
+        };
+
+        recorder.start();
+        setTimeout(() => {
+          recorder.stop();
+          document.getElementById("start-button").style.display =
+            "inline-block";
+          document.getElementById("stop-button").style.display = "none";
+          audioChunks = [];
+        }, 5000); // Recording duration (in milliseconds)
+      }
+
+      function visualizeAudio(audioData) {
+        const buffer = new ArrayBuffer(audioData.length);
+        const view = new DataView(buffer);
+        audioData.forEach((byte, i) => view.setInt8(i, byte));
+        const audioContext = new AudioContext();
+        const audioBuffer = audioContext.createBuffer(
+          1,
+          audioData.length,
+          44100
+        );
+        const nowBuffering = audioBuffer.getChannelData(0);
+        for (let i = 0; i < audioData.length; i++) {
+          nowBuffering[i] = view.getFloat32(i, true);
+        }
+        const canvasContext = document
+          .getElementById("canvas")
+          .getContext("2d");
+        const canvas = document.getElementById("canvas");
+        const width = canvas.width;
+        const height = canvas.height;
+        canvasContext.clearRect(0, 0, width, height);
+        const drawAudio = function () {
+          const drawVisual = requestAnimationFrame(drawAudio);
+          const times = new Uint8Array(audioBuffer.length);
+          const waveform = new Float32Array(audioBuffer.length);
+          audioBuffer.copyFromChannel(waveform, 0, 0);
+          for (let i = 0; i < times.length; i++) {
+            times[i] = i;
+          }
+          canvasContext.lineWidth = 1;
+          canvasContext.strokeStyle = "rgb(0, 0, 0)";
+          canvasContext.beginPath();
+          canvasContext.moveTo(0, height / 2);
+          const scale = width / times.length;
+          for (let i = 0; i < times.length; i++) {
+            const x = times[i] * scale;
+            const y = ((waveform[i] + 1) * height) / 2;
+            canvasContext.lineTo(x, y);
+          }
+          canvasContext.lineTo(width, height / 2);
+          canvasContext.stroke();
+          canvasContext.closePath();
+        };
+        drawAudio();
+      }
+    </script>
+  </body>
+</html>
